@@ -1,0 +1,8 @@
+[project]
+name = "affixio-music-royalty-ledger"
+version = "0.1.0"
+description = "A simulated, tamper-evident royalty split ledger for collaborative music releases."
+requires-python = ">=3.10"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
