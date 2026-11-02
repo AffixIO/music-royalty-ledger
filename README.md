@@ -1,5 +1,7 @@
 # Verifiable music royalty splits
 
+CI is configured to run the test suite from the repository root.
+
 Collaborative releases often fail at the handoff between a split agreement, a royalty statement and a later dispute. This small example shows how an agent or rights workflow can verify that a simulated statement still matches the agreed release, version and contributor shares.
 
 It uses fictional data only. No streaming account, label system, bank, wallet, payment provider or real royalty is contacted.
