@@ -5,4 +5,4 @@ agreement = SplitAgreement.create("midnight-train", [SplitEntry("artist", 60), S
 ledger.record(agreement)
 statement = ledger.authorise_statement("midnight-train", 1000.0, "statement-001")
 result = ledger.verify_statement(statement, "midnight-train", consume=True)
-print({"mode": "simulation", "release": agreement.release_id, "statement": statement, "result": result.reason})
+print({"mode": "simulation", "release": agreement.release_id, "statement": statement, "allocations": ledger.allocations(statement), "result": result.reason, "audit": ledger.verify_audit_chain().reason})

@@ -37,21 +37,56 @@ class VerificationResult:
     ok: bool
     reason: str
 
+@dataclass(frozen=True)
+class AuditEvent:
+    sequence: int
+    kind: str
+    subject: str
+    event_digest: str
+    previous_digest: str
+    chain_digest: str
+
 class RoyaltyLedger:
     def __init__(self):
         self._agreements, self._consumed, self._revoked = {}, set(), set()
+        self._events: list[AuditEvent] = []
+
+    def _record_event(self, kind: str, subject: str, data: object) -> AuditEvent:
+        previous = self._events[-1].chain_digest if self._events else "GENESIS"
+        event_digest = _digest({"kind": kind, "subject": subject, "data": data})
+        chain_digest = _digest({"sequence": len(self._events) + 1, "event": event_digest, "previous": previous})
+        event = AuditEvent(len(self._events) + 1, kind, subject, event_digest, previous, chain_digest)
+        self._events.append(event)
+        return event
 
     def record(self, agreement: SplitAgreement) -> str:
         if agreement.release_id in self._agreements:
             raise ValueError("release already has an agreement; create a new version")
         self._agreements[agreement.release_id] = agreement
+        self._record_event("agreement-recorded", agreement.release_id, agreement.agreement_digest)
         return agreement.agreement_digest
 
     def authorise_statement(self, release_id: str, gross_amount: float, statement_id: str | None = None) -> dict:
         agreement = self._agreements[release_id]
         statement_id = statement_id or str(uuid4())
         payload = {"statement_id": statement_id, "release_id": release_id, "version": agreement.version, "currency": agreement.currency, "gross_amount": gross_amount, "agreement_digest": agreement.agreement_digest}
-        return {"payload": payload, "evidence_digest": _digest(payload)}
+        statement = {"payload": payload, "evidence_digest": _digest(payload)}
+        self._record_event("statement-authorised", statement_id, statement["evidence_digest"])
+        return statement
+
+    def allocations(self, statement: dict) -> dict[str, float]:
+        """Calculate simulated allocations without rounding away the total."""
+        payload = statement["payload"]
+        agreement = self._agreements[payload["release_id"]]
+        amount = float(payload["gross_amount"])
+        if amount < 0:
+            raise ValueError("gross amount cannot be negative")
+        allocations = {entry.contributor: round(amount * entry.share_percent / 100, 2) for entry in agreement.splits}
+        remainder = round(amount - sum(allocations.values()), 2)
+        if remainder:
+            first = agreement.splits[0].contributor
+            allocations[first] = round(allocations[first] + remainder, 2)
+        return allocations
 
     def verify_statement(self, statement: dict, expected_release: str, *, consume: bool = False) -> VerificationResult:
         try:
@@ -63,9 +98,23 @@ class RoyaltyLedger:
             agreement = self._agreements.get(expected_release)
             if not agreement or payload["agreement_digest"] != agreement.agreement_digest: return VerificationResult(False, "agreement-mismatch")
             if consume: self._consumed.add(payload["statement_id"])
+            if consume: self._record_event("statement-consumed", payload["statement_id"], statement["evidence_digest"])
             return VerificationResult(True, "verified")
         except (KeyError, TypeError):
             return VerificationResult(False, "malformed")
 
     def revoke(self, statement_id: str) -> None:
         self._revoked.add(statement_id)
+        self._record_event("statement-revoked", statement_id, statement_id)
+
+    def audit_events(self) -> tuple[AuditEvent, ...]:
+        return tuple(self._events)
+
+    def verify_audit_chain(self) -> VerificationResult:
+        previous = "GENESIS"
+        for index, event in enumerate(self._events, 1):
+            expected = _digest({"sequence": index, "event": event.event_digest, "previous": previous})
+            if event.sequence != index or event.previous_digest != previous or event.chain_digest != expected:
+                return VerificationResult(False, "audit-chain-tampered")
+            previous = event.chain_digest
+        return VerificationResult(True, "audit-chain-verified")

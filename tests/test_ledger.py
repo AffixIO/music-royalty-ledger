@@ -24,3 +24,13 @@ def test_revocation_and_wrong_release_fail_closed():
 
 def test_splits_must_total_one_hundred():
     with pytest.raises(ValueError): SplitAgreement.create("bad", [SplitEntry("artist", 99)])
+
+def test_allocations_preserve_the_simulated_gross_total():
+    ledger = setup_ledger(); statement = ledger.authorise_statement("release-1", 100, "s-4")
+    assert ledger.allocations(statement) == {"artist": 70.0, "producer": 30.0}
+
+def test_audit_chain_detects_history_tampering():
+    ledger = setup_ledger(); ledger.authorise_statement("release-1", 100, "s-5")
+    assert ledger.verify_audit_chain().ok
+    ledger._events[0] = ledger._events[0].__class__(1, "changed", "release-1", "bad", "GENESIS", "bad")
+    assert ledger.verify_audit_chain().reason == "audit-chain-tampered"

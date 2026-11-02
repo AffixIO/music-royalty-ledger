@@ -14,7 +14,7 @@ pytest -q
 python demo.py
 ```
 
-The demo creates a 60/25/15 split for a fictional release, creates a simulated £1,000 statement, verifies it once and consumes the evidence. Tests show that changed amounts are rejected, consumed statements cannot be replayed, revoked evidence fails, wrong releases fail, and shares must total 100%.
+The demo creates a 60/25/15 split for a fictional release, creates a simulated £1,000 statement, calculates each contributor's allocation, verifies it once and consumes the evidence. It also maintains a hash-linked audit chain. Tests show that changed amounts are rejected, consumed statements cannot be replayed, revoked evidence fails, wrong releases fail, audit history tampering is detected, and shares must total 100%.
 
 ## Why this matters
 
@@ -31,6 +31,8 @@ The example keeps the ledger local and dependency-light so it can be reviewed in
 - pseudonymous contributor IDs with private recovery by an authorised party
 - Merkle-batched monthly evidence for catalogue-scale reporting
 - adapters for platform exports without granting the verifier payment authority
+- dispute windows that preserve both the original and amended agreement versions
+- catalogue-level Merkle roots for compact monthly audit references
 
 ## Status and safety
 
